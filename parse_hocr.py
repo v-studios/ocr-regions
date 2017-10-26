@@ -22,6 +22,10 @@ from bs4 import BeautifulSoup
 
 
 # https://stackoverflow.com/questions/43076995/ocr-extracting-fields-from-forms-with-varying-structures
+try:
+    MAX = sys.maxint            # py2
+except AttributeError:
+    MAX = sys.maxsize           # py3
 
 
 def parse_hocr(hocr_file=None, search_terms=None):
@@ -52,6 +56,15 @@ def parse_hocr(hocr_file=None, search_terms=None):
     words = soup.find_all('span', class_='ocrx_word')
 
     result = dict()
+    minx = MAX
+    miny = MAX
+    maxx = 0
+    maxy = 0
+
+    # TODO: for each set of search terms, get the bbox info and find the minx,
+    # miny, maxx, maxy of ALL the found words; then add a vertical delta to
+    # capture the words under the label; might have to add horizontal delta if
+    # the label doesn't extend the width of the box.
 
     # Loop through all the words and look for our search terms.
     for word in words:
@@ -70,16 +83,21 @@ def parse_hocr(hocr_file=None, search_terms=None):
                 # term is in there twice.
                 if s not in result.keys():
                     result.update({s: bbox})
-
+                    # collect min/max for wordsbox
+                    minx = min(minx, bbox[0])
+                    miny = min(miny, bbox[1])
+                    maxx = max(maxx, bbox[2])
+                    maxy = max(maxy, bbox[3])
             else:
                 pass
 
-    return result
-
+    # UZN: left top width height freetext
+    uzn = [minx, miny, maxx - minx, maxy - miny, ' '.join(search_terms)]
+    return result, uzn
 
 if __name__ == '__main__':
     print('looking in {} for {}'.format(sys.argv[1], tuple(sys.argv[2:])))
-    bbox_dict = parse_hocr(hocr_file=sys.argv[1],
-                           search_terms=tuple(sys.argv[2:]))
+    bbox_dict, uzn = parse_hocr(hocr_file=sys.argv[1],
+                                search_terms=tuple(sys.argv[2:]))
     print(bbox_dict)
-    
+    print('{} {} {} {} "{}"'.format(uzn[0], uzn[1], uzn[2], uzn[3], uzn[4]))
