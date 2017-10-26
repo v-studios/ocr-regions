@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 
-import difflib
-import sys
-
-from bs4 import BeautifulSoup
-
 # We want to find the boxes containing the labels, then extract their text.
 # 1. Find the label's bounding box by its words;
 # 2. Move our box "down" to find only the text we want
@@ -20,13 +15,20 @@ from bs4 import BeautifulSoup
 
 # HOW do we tell tess to only look at a region? there's some UZN file?
 
+import difflib
+import os
+import sys
 
-# https://stackoverflow.com/questions/43076995/ocr-extracting-fields-from-forms-with-varying-structures
+from bs4 import BeautifulSoup
+
 try:
     MAX = sys.maxint            # py2
 except AttributeError:
     MAX = sys.maxsize           # py3
 
+
+# Original word-finding code from
+# https://stackoverflow.com/questions/43076995/ocr-extracting-fields-from-forms-with-varying-structures
 
 def parse_hocr(hocr_file=None, search_terms=None):
     """Parse the hocr file and find a reasonable bounding box for each of the
@@ -95,9 +97,24 @@ def parse_hocr(hocr_file=None, search_terms=None):
     uzn = [minx, miny, maxx - minx, maxy - miny, ' '.join(search_terms)]
     return result, uzn
 
+
 if __name__ == '__main__':
     print('looking in {} for {}'.format(sys.argv[1], tuple(sys.argv[2:])))
     bbox_dict, uzn = parse_hocr(hocr_file=sys.argv[1],
                                 search_terms=tuple(sys.argv[2:]))
     print(bbox_dict)
-    print('{} {} {} {} "{}"'.format(uzn[0], uzn[1], uzn[2], uzn[3], uzn[4]))
+    # Output the UZN file based on the name of the input HOCR file
+    fname = os.path.splitext(sys.argv[1])[0]
+
+    # TODO: use named tuple like uzn.xmin, ...
+    uzn_line = '{} {} {} {} "{}"\n'.format(uzn[0], uzn[1], uzn[2], uzn[3], uzn[4])
+    print(uzn_line)
+    uznfp = open(fname + '.uzn', 'w')
+    uznfp.write(uzn_line)
+    # Now if we do:  tesseract GCAR1.tif --psm 7 GCAR1-field4-psm7
+    # we get the text of our label
+    # Add verticle height of 3x the label height and almost 2x horiz
+    uzn[2] = int(1.75 * uzn[2])
+    uzn[3] = 3 * uzn[3]
+    uzn_line = '{} {} {} {} "{}"\n'.format(uzn[0], uzn[1], uzn[2], uzn[3], uzn[4])
+    uznfp.write(uzn_line)       # append
